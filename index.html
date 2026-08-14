@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<script>
+(function(){
+  var needsPolyfill=(function(){
+    try{
+      if(typeof crypto==="undefined"||typeof crypto.randomUUID!=="function")return true;
+      if(typeof Object.hasOwn!=="function")return true;
+      if(typeof[].at!=="function")return true;
+      if(typeof[].findLast!=="function")return true;
+      return false;
+    }catch(e){return true}
+  })();
+  if(needsPolyfill){
+    document.write('<script src="./polyfills.js"><\/script>');
+  }
+})();
+</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="./favicon.svg">
+  <title>智学刷题 - 中级会计职称</title>
+  <meta name="description" content="中级会计职称刷题练习">
+  <script>(function() {
+      var isModernBrowser = (function() {
+        try {
+          if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') return false;
+          if (!CSS.supports('selector(:has(*))')) return false;
+          if (!CSS.supports('color', 'color-mix(in srgb, red, blue)')) return false;
+          if (!CSS.supports('color', 'oklch(50% 0.1 0)')) return false;
+          return true;
+        } catch (e) {
+          return false;
+        }
+      })();
+      var cssUrl = "./assets/main-Cw7A_0wS.css";
+      var suffix = isModernBrowser ? '' : '.legacy';
+      var finalUrl = cssUrl.replace(/.css$/, suffix + '.css');
+      document.write('<link rel="stylesheet" href="' + finalUrl + '">');
+    })();</script>
+  <script>window.__platform__ = {
+      appId: 'gh-pages',
+      userId: 'local-user',
+      env: 'runtime',
+      appName: '智学刷题',
+      tenantId: 'gh-pages',
+    };
+    window.appId = 'gh-pages';
+    window.userId = 'local-user';
+    window.tenantId = 'gh-pages';
+    window.csrfToken = '';
+    window.ENVIRONMENT = 'production';
+    window.__BASENAME__ = '';
+    window._appInfo = {
+      name: '智学刷题',
+      avatar: '',
+      description: '中级会计职称刷题练习',
+    };
+    window.IS_MIAODA_PREVIEW = false;
+    window.MIAODA_BUILTIN_TTT = '';
+
+    (function() {
+      var noopPaths = [
+        '/__gh_pages_noop__/',
+        '/__runtime__/',
+        '/spark/',
+        '/ai/api/',
+        '/app/gh-pages/',
+        '/app/app_',
+        '/observability/',
+        '/permissions/roles',
+        '/account/',
+        '/studio/',
+        '/capability/',
+        '/lark/',
+        '/get_published',
+        '/user_info',
+      ];
+
+      function isNoopUrl(url) {
+        if (!url) return false;
+        if (typeof url !== 'string') {
+          try { url = url.toString(); } catch(e) { return false; }
+        }
+        if (url.indexOf('.js') !== -1 || url.indexOf('.css') !== -1 ||
+            url.indexOf('.svg') !== -1 || url.indexOf('.png') !== -1 ||
+            url.indexOf('.jpg') !== -1 || url.indexOf('.ico') !== -1 ||
+            url.indexOf('.woff') !== -1 || url.indexOf('.ttf') !== -1 ||
+            url.indexOf('.html') !== -1 || url.indexOf('/assets/') !== -1) {
+          return false;
+        }
+        for (var i = 0; i < noopPaths.length; i++) {
+          if (url.indexOf(noopPaths[i]) !== -1) return true;
+        }
+        return false;
+      }
+
+      var originalFetch = window.fetch;
+      window.fetch = function(input, init) {
+        var url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+        if (isNoopUrl(url)) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            json: function() { return Promise.resolve({ code: 0, data: { roles: [], permissions: [] } }); },
+            text: function() { return Promise.resolve('{"code":0,"data":{}}'); },
+            headers: new Headers({ 'Content-Type': 'application/json' }),
+          });
+        }
+        return originalFetch.apply(this, arguments);
+      };
+
+      var originalXHROpen = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function(method, url) {
+        this._isNoop = isNoopUrl(url);
+        return originalXHROpen.apply(this, arguments);
+      };
+
+      var originalXHRSend = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.send = function() {
+        if (this._isNoop) {
+          Object.defineProperty(this, 'readyState', { value: 4, writable: false });
+          Object.defineProperty(this, 'status', { value: 200, writable: false });
+          Object.defineProperty(this, 'responseText', { value: '{"code":0,"data":{}}', writable: false });
+          Object.defineProperty(this, 'response', { value: '{"code":0,"data":{}}', writable: false });
+          if (typeof this.onreadystatechange === 'function') {
+            try { this.onreadystatechange(); } catch(e) {}
+          }
+          if (typeof this.onload === 'function') {
+            try { this.onload(); } catch(e) {}
+          }
+          return;
+        }
+        return originalXHRSend.apply(this, arguments);
+      };
+
+      window.addEventListener('error', function(e) {
+        if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        return true;
+      }, true);
+
+      window.addEventListener('unhandledrejection', function(e) {
+        if (e.reason && typeof e.reason === 'object' && e.reason.message &&
+            (e.reason.message.indexOf('fetch') !== -1 || e.reason.message.indexOf('network') !== -1 ||
+             e.reason.message.indexOf('permission') !== -1 || e.reason.message.indexOf('404') !== -1)) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }, true);
+    })();</script>
+  <script type="module" crossorigin src="./assets/main-Bi4TZM8h.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+</body>
+</html>
