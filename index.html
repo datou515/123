@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>智学刷题 - 调试版</title>
+<title>智学刷题 - 调试版v2</title>
 <style>
   #debug-panel {
     position: fixed;
@@ -14,9 +14,9 @@
     color: white;
     padding: 10px;
     font-family: monospace;
-    font-size: 14px;
+    font-size: 13px;
     z-index: 999999;
-    max-height: 50vh;
+    max-height: 60vh;
     overflow-y: auto;
     display: none;
   }
@@ -40,11 +40,24 @@
     transform: translate(-50%, -50%);
     font-size: 18px;
     color: #666;
+    text-align: center;
+  }
+  #test-btn {
+    margin-top: 10px;
+    padding: 8px 16px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
   }
 </style>
 </head>
 <body>
-<div id="loading">正在加载应用...</div>
+<div id="loading">
+  <div>正在加载应用...</div>
+  <button id="test-btn" onclick="runDiagnostics()">点此运行诊断</button>
+</div>
 <div id="root"></div>
 <div id="debug-panel"></div>
 <button id="debug-btn" onclick="document.getElementById('debug-panel').classList.toggle('show')">显示调试信息</button>
@@ -61,19 +74,50 @@
     console.log(log);
   }
   
+  // 捕获所有错误
   window.addEventListener('error', function(e) {
-    var msg = 'JS错误: ' + (e.message || '未知错误') + ' at ' + (e.filename || '?') + ':' + (e.lineno || '?');
+    var msg = 'JS错误: ' + (e.message || '未知错误') + ' at ' + (e.filename || '?') + ':' + (e.lineno || '?') + ':' + (e.colno || '?');
+    if (e.error && e.error.stack) {
+      msg += '<br>堆栈: ' + e.error.stack.substring(0, 500);
+    }
     addDebug(msg, 'ERROR');
     debugPanel.classList.add('show');
     document.getElementById('loading').style.display = 'none';
-  });
+  }, true);
   
   window.addEventListener('unhandledrejection', function(e) {
-    var msg = 'Promise错误: ' + (e.reason && e.reason.message ? e.reason.message : JSON.stringify(e.reason));
+    var msg = 'Promise错误: ';
+    if (e.reason) {
+      if (e.reason.message) msg += e.reason.message;
+      else if (typeof e.reason === 'string') msg += e.reason;
+      else msg += JSON.stringify(e.reason).substring(0, 300);
+      if (e.reason.stack) msg += '<br>堆栈: ' + e.reason.stack.substring(0, 500);
+    }
     addDebug(msg, 'PROMISE_ERROR');
     debugPanel.classList.add('show');
     document.getElementById('loading').style.display = 'none';
   });
+  
+  // 捕获console.error
+  var originalConsoleError = console.error;
+  console.error = function() {
+    var msg = Array.prototype.slice.call(arguments).map(function(a) { 
+      return typeof a === 'object' ? JSON.stringify(a).substring(0, 300) : String(a);
+    }).join(' ');
+    addDebug('console.error: ' + msg, 'CONSOLE_ERROR');
+    debugPanel.classList.add('show');
+    originalConsoleError.apply(console, arguments);
+  };
+  
+  // 捕获console.warn
+  var originalConsoleWarn = console.warn;
+  console.warn = function() {
+    var msg = Array.prototype.slice.call(arguments).map(function(a) { 
+      return typeof a === 'object' ? JSON.stringify(a).substring(0, 200) : String(a);
+    }).join(' ');
+    addDebug('console.warn: ' + msg, 'WARN');
+    originalConsoleWarn.apply(console, arguments);
+  };
   
   addDebug('页面开始加载');
   
@@ -101,13 +145,13 @@
   
   addDebug('平台变量已设置');
   
-  // 拦截平台API
+  // 拦截平台API - 更全面
   (function() {
-    var noopPaths = ['/__runtime__/', '/spark/', '/ai/api/', '/app/', '/observability/', '/permissions/', '/account/', '/studio/', '/capability/', '/lark/', '/get_published', '/user_info'];
+    var noopPaths = ['/__runtime__/', '/spark/', '/ai/api/', '/app/', '/observability/', '/permissions/', '/account/', '/studio/', '/capability/', '/lark/', '/get_published', '/user_info', '/__gh_pages_noop__/', '/current_server_timestamp', '/metrics/collect'];
     
     function isNoopUrl(url) {
       if (!url || typeof url !== 'string') return false;
-      if (url.indexOf('.js') !== -1 || url.indexOf('.css') !== -1 || url.indexOf('/assets/') !== -1) return false;
+      if (url.indexOf('.js') !== -1 || url.indexOf('.css') !== -1 || url.indexOf('/assets/') !== -1 || url.indexOf('data:') === 0) return false;
       for (var i = 0; i < noopPaths.length; i++) {
         if (url.indexOf(noopPaths[i]) !== -1) return true;
       }
@@ -121,16 +165,75 @@
         addDebug('拦截API: ' + url, 'API');
         return Promise.resolve({
           ok: true, status: 200,
-          json: function() { return Promise.resolve({ code: 0, data: { roles: [], permissions: [] } }); },
+          json: function() { return Promise.resolve({ code: 0, data: { roles: [], permissions: [], user: {} } }); },
           text: function() { return Promise.resolve('{"code":0,"data":{}}'); },
           headers: new Headers({ 'Content-Type': 'application/json' }),
         });
       }
-      return originalFetch.apply(this, arguments);
+      addDebug('真实请求: ' + url, 'FETCH');
+      return originalFetch.apply(this, arguments).catch(function(err) {
+        addDebug('请求失败: ' + url + ' - ' + err.message, 'FETCH_ERROR');
+        throw err;
+      });
+    };
+    
+    var originalXHROpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url) {
+      this._url = url;
+      if (isNoopUrl(url)) {
+        this._isNoop = true;
+        addDebug('拦截XHR: ' + method + ' ' + url, 'API');
+      } else {
+        addDebug('真实XHR: ' + method + ' ' + url, 'XHR');
+      }
+      return originalXHROpen.apply(this, arguments);
+    };
+    
+    var originalXHRSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function() {
+      if (this._isNoop) {
+        Object.defineProperty(this, 'readyState', { value: 4, writable: false });
+        Object.defineProperty(this, 'status', { value: 200, writable: false });
+        Object.defineProperty(this, 'responseText', { value: '{"code":0,"data":{}}', writable: false });
+        Object.defineProperty(this, 'response', { value: '{"code":0,"data":{}}', writable: false });
+        if (typeof this.onreadystatechange === 'function') {
+          try { this.onreadystatechange(); } catch(e) { addDebug('XHR回调错误: ' + e.message, 'ERROR'); }
+        }
+        if (typeof this.onload === 'function') {
+          try { this.onload(); } catch(e) { addDebug('XHR onload错误: ' + e.message, 'ERROR'); }
+        }
+        return;
+      }
+      return originalXHRSend.apply(this, arguments);
     };
   })();
   
   addDebug('API拦截器已设置');
+  
+  // 诊断函数
+  function runDiagnostics() {
+    addDebug('=== 开始诊断 ===', 'DIAG');
+    addDebug('当前URL: ' + window.location.href);
+    addDebug('root元素: ' + (document.getElementById('root') ? '存在' : '不存在'));
+    addDebug('root内容长度: ' + document.getElementById('root').innerHTML.length);
+    
+    // 检查常见的全局变量
+    var globals = ['React', 'ReactDOM', 'Vue', 'createRoot', 'render'];
+    globals.forEach(function(g) {
+      addDebug('window.' + g + ': ' + (typeof window[g]));
+    });
+    
+    // 检查document.readyState
+    addDebug('document.readyState: ' + document.readyState);
+    
+    // 检查有没有script加载失败
+    var scripts = document.querySelectorAll('script[src]');
+    scripts.forEach(function(s) {
+      addDebug('脚本: ' + s.src + ' - ' + (s.complete ? '已加载' : '加载中'));
+    });
+    
+    debugPanel.classList.add('show');
+  }
   
   // 加载CSS
   var link = document.createElement('link');
@@ -147,14 +250,17 @@
   script.onload = function() { 
     addDebug('主JS加载成功'); 
     setTimeout(function() {
-      if (document.getElementById('root').innerHTML === '') {
+      var root = document.getElementById('root');
+      if (root && root.innerHTML === '') {
         addDebug('警告: root元素为空，应用可能未渲染', 'WARN');
+        addDebug('尝试运行诊断...', 'WARN');
+        runDiagnostics();
         debugPanel.classList.add('show');
-      } else {
-        addDebug('应用已渲染，root内容长度: ' + document.getElementById('root').innerHTML.length);
+      } else if (root) {
+        addDebug('应用已渲染，root内容长度: ' + root.innerHTML.length);
         document.getElementById('loading').style.display = 'none';
       }
-    }, 2000);
+    }, 3000);
   };
   script.onerror = function() { 
     addDebug('主JS加载失败', 'ERROR'); 
@@ -164,6 +270,16 @@
   document.body.appendChild(script);
   
   addDebug('JS脚本已插入');
+  
+  // 5秒后强制显示调试信息
+  setTimeout(function() {
+    var root = document.getElementById('root');
+    if (!root || root.innerHTML === '') {
+      addDebug('5秒后仍未渲染，强制显示调试面板', 'WARN');
+      runDiagnostics();
+      debugPanel.classList.add('show');
+    }
+  }, 5000);
 </script>
 </body>
 </html>
