@@ -1,285 +1,250 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>智学刷题 - 调试版v2</title>
+<!-- 调试代码开始 -->
 <style>
   #debug-panel {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    background: #ff4444;
-    color: white;
-    padding: 10px;
-    font-family: monospace;
-    font-size: 13px;
-    z-index: 999999;
-    max-height: 60vh;
-    overflow-y: auto;
-    display: none;
+    position: fixed; top: 0; left: 0; right: 0;
+    background: #d32f2f; color: white; padding: 12px;
+    font-family: monospace; font-size: 13px; z-index: 9999999;
+    max-height: 70vh; overflow-y: auto; display: none;
+    white-space: pre-wrap; word-break: break-all;
   }
   #debug-panel.show { display: block; }
-  #debug-btn {
-    position: fixed;
-    bottom: 10px;
-    right: 10px;
-    z-index: 999999;
-    padding: 8px 12px;
-    background: #2196F3;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 12px;
-  }
-  #loading {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 18px;
-    color: #666;
-    text-align: center;
-  }
-  #test-btn {
-    margin-top: 10px;
-    padding: 8px 16px;
-    background: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 14px;
+  #debug-toggle {
+    position: fixed; bottom: 20px; right: 20px; z-index: 9999999;
+    padding: 10px 16px; background: #1976d2; color: white;
+    border: none; border-radius: 6px; font-size: 14px; cursor: pointer;
   }
 </style>
-</head>
-<body>
-<div id="loading">
-  <div>正在加载应用...</div>
-  <button id="test-btn" onclick="runDiagnostics()">点此运行诊断</button>
-</div>
-<div id="root"></div>
 <div id="debug-panel"></div>
-<button id="debug-btn" onclick="document.getElementById('debug-panel').classList.toggle('show')">显示调试信息</button>
-
+<button id="debug-toggle" onclick="document.getElementById('debug-panel').classList.toggle('show')">调试信息</button>
 <script>
-  var debugPanel = document.getElementById('debug-panel');
-  var debugLogs = [];
-  
-  function addDebug(msg, type) {
-    var time = new Date().toLocaleTimeString();
-    var log = '[' + time + '] [' + (type || 'INFO') + '] ' + msg;
-    debugLogs.push(log);
-    debugPanel.innerHTML = debugLogs.join('<br>');
-    console.log(log);
-  }
-  
-  // 捕获所有错误
+  var __debugPanel = document.getElementById('debug-panel');
+  var __debugLogs = [];
+  window.__addDebug = function(msg, type) {
+    var t = new Date().toLocaleTimeString() + '.' + String(new Date().getMilliseconds()).padStart(3, '0');
+    var log = '[' + t + '] [' + (type || 'INFO') + '] ' + msg;
+    __debugLogs.push(log);
+    __debugPanel.textContent = __debugLogs.join('\n');
+    console.log('[DEBUG]', msg);
+  };
+  // 最先注册错误监听器，用捕获阶段
   window.addEventListener('error', function(e) {
-    var msg = 'JS错误: ' + (e.message || '未知错误') + ' at ' + (e.filename || '?') + ':' + (e.lineno || '?') + ':' + (e.colno || '?');
-    if (e.error && e.error.stack) {
-      msg += '<br>堆栈: ' + e.error.stack.substring(0, 500);
-    }
-    addDebug(msg, 'ERROR');
-    debugPanel.classList.add('show');
-    document.getElementById('loading').style.display = 'none';
+    var msg = 'ERROR: ' + (e.message || 'unknown') + ' @ ' + (e.filename || '?') + ':' + (e.lineno || '?') + ':' + (e.colno || '?');
+    if (e.error && e.error.stack) msg += '\nSTACK: ' + e.error.stack.substring(0, 800);
+    window.__addDebug(msg, 'ERROR');
+    __debugPanel.classList.add('show');
   }, true);
-  
   window.addEventListener('unhandledrejection', function(e) {
-    var msg = 'Promise错误: ';
+    var msg = 'PROMISE_ERROR: ';
     if (e.reason) {
       if (e.reason.message) msg += e.reason.message;
       else if (typeof e.reason === 'string') msg += e.reason;
-      else msg += JSON.stringify(e.reason).substring(0, 300);
-      if (e.reason.stack) msg += '<br>堆栈: ' + e.reason.stack.substring(0, 500);
+      else msg += JSON.stringify(e.reason).substring(0, 500);
+      if (e.reason.stack) msg += '\nSTACK: ' + e.reason.stack.substring(0, 800);
     }
-    addDebug(msg, 'PROMISE_ERROR');
-    debugPanel.classList.add('show');
-    document.getElementById('loading').style.display = 'none';
-  });
-  
-  // 捕获console.error
-  var originalConsoleError = console.error;
+    window.__addDebug(msg, 'PROMISE_ERROR');
+    __debugPanel.classList.add('show');
+  }, true);
+  // 劫持console.error
+  var __origConsoleError = console.error;
   console.error = function() {
-    var msg = Array.prototype.slice.call(arguments).map(function(a) { 
+    var msg = Array.prototype.slice.call(arguments).map(function(a) {
+      if (a instanceof Error) return a.message + (a.stack ? '\n' + a.stack.substring(0, 500) : '');
       return typeof a === 'object' ? JSON.stringify(a).substring(0, 300) : String(a);
     }).join(' ');
-    addDebug('console.error: ' + msg, 'CONSOLE_ERROR');
-    debugPanel.classList.add('show');
-    originalConsoleError.apply(console, arguments);
+    window.__addDebug('console.error: ' + msg, 'CONSOLE_ERROR');
+    __debugPanel.classList.add('show');
+    __origConsoleError.apply(console, arguments);
   };
-  
-  // 捕获console.warn
-  var originalConsoleWarn = console.warn;
-  console.warn = function() {
-    var msg = Array.prototype.slice.call(arguments).map(function(a) { 
-      return typeof a === 'object' ? JSON.stringify(a).substring(0, 200) : String(a);
-    }).join(' ');
-    addDebug('console.warn: ' + msg, 'WARN');
-    originalConsoleWarn.apply(console, arguments);
-  };
-  
-  addDebug('页面开始加载');
-  
-  // 设置平台变量
-  window.__platform__ = {
-    appId: 'gh-pages',
-    userId: 'local-user',
-    env: 'runtime',
-    appName: '智学刷题',
-    tenantId: 'gh-pages',
-  };
-  window.appId = 'gh-pages';
-  window.userId = 'local-user';
-  window.tenantId = 'gh-pages';
-  window.csrfToken = '';
-  window.ENVIRONMENT = 'production';
-  window.__BASENAME__ = '';
-  window._appInfo = {
-    name: '智学刷题',
-    avatar: '',
-    description: '中级会计职称刷题练习',
-  };
-  window.IS_MIAODA_PREVIEW = false;
-  window.MIAODA_BUILTIN_TTT = '';
-  
-  addDebug('平台变量已设置');
-  
-  // 拦截平台API - 更全面
-  (function() {
-    var noopPaths = ['/__runtime__/', '/spark/', '/ai/api/', '/app/', '/observability/', '/permissions/', '/account/', '/studio/', '/capability/', '/lark/', '/get_published', '/user_info', '/__gh_pages_noop__/', '/current_server_timestamp', '/metrics/collect'];
-    
-    function isNoopUrl(url) {
-      if (!url || typeof url !== 'string') return false;
-      if (url.indexOf('.js') !== -1 || url.indexOf('.css') !== -1 || url.indexOf('/assets/') !== -1 || url.indexOf('data:') === 0) return false;
-      for (var i = 0; i < noopPaths.length; i++) {
-        if (url.indexOf(noopPaths[i]) !== -1) return true;
-      }
+  window.__addDebug('调试脚本已加载');
+</script>
+<!-- 调试代码结束 -->
+
+<script>
+(function(){
+  var needsPolyfill=(function(){
+    try{
+      if(typeof crypto==="undefined"||typeof crypto.randomUUID!=="function")return true;
+      if(typeof Object.hasOwn!=="function")return true;
+      if(typeof[].at!=="function")return true;
+      if(typeof[].findLast!=="function")return true;
       return false;
-    }
-    
-    var originalFetch = window.fetch;
-    window.fetch = function(input, init) {
-      var url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
-      if (isNoopUrl(url)) {
-        addDebug('拦截API: ' + url, 'API');
-        return Promise.resolve({
-          ok: true, status: 200,
-          json: function() { return Promise.resolve({ code: 0, data: { roles: [], permissions: [], user: {} } }); },
-          text: function() { return Promise.resolve('{"code":0,"data":{}}'); },
-          headers: new Headers({ 'Content-Type': 'application/json' }),
-        });
-      }
-      addDebug('真实请求: ' + url, 'FETCH');
-      return originalFetch.apply(this, arguments).catch(function(err) {
-        addDebug('请求失败: ' + url + ' - ' + err.message, 'FETCH_ERROR');
-        throw err;
-      });
-    };
-    
-    var originalXHROpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function(method, url) {
-      this._url = url;
-      if (isNoopUrl(url)) {
-        this._isNoop = true;
-        addDebug('拦截XHR: ' + method + ' ' + url, 'API');
-      } else {
-        addDebug('真实XHR: ' + method + ' ' + url, 'XHR');
-      }
-      return originalXHROpen.apply(this, arguments);
-    };
-    
-    var originalXHRSend = XMLHttpRequest.prototype.send;
-    XMLHttpRequest.prototype.send = function() {
-      if (this._isNoop) {
-        Object.defineProperty(this, 'readyState', { value: 4, writable: false });
-        Object.defineProperty(this, 'status', { value: 200, writable: false });
-        Object.defineProperty(this, 'responseText', { value: '{"code":0,"data":{}}', writable: false });
-        Object.defineProperty(this, 'response', { value: '{"code":0,"data":{}}', writable: false });
-        if (typeof this.onreadystatechange === 'function') {
-          try { this.onreadystatechange(); } catch(e) { addDebug('XHR回调错误: ' + e.message, 'ERROR'); }
-        }
-        if (typeof this.onload === 'function') {
-          try { this.onload(); } catch(e) { addDebug('XHR onload错误: ' + e.message, 'ERROR'); }
-        }
-        return;
-      }
-      return originalXHRSend.apply(this, arguments);
-    };
+    }catch(e){return true}
   })();
-  
-  addDebug('API拦截器已设置');
-  
-  // 诊断函数
-  function runDiagnostics() {
-    addDebug('=== 开始诊断 ===', 'DIAG');
-    addDebug('当前URL: ' + window.location.href);
-    addDebug('root元素: ' + (document.getElementById('root') ? '存在' : '不存在'));
-    addDebug('root内容长度: ' + document.getElementById('root').innerHTML.length);
-    
-    // 检查常见的全局变量
-    var globals = ['React', 'ReactDOM', 'Vue', 'createRoot', 'render'];
-    globals.forEach(function(g) {
-      addDebug('window.' + g + ': ' + (typeof window[g]));
-    });
-    
-    // 检查document.readyState
-    addDebug('document.readyState: ' + document.readyState);
-    
-    // 检查有没有script加载失败
-    var scripts = document.querySelectorAll('script[src]');
-    scripts.forEach(function(s) {
-      addDebug('脚本: ' + s.src + ' - ' + (s.complete ? '已加载' : '加载中'));
-    });
-    
-    debugPanel.classList.add('show');
+  if(needsPolyfill){
+    document.write('<script src="./polyfills.js"><\/script>');
   }
-  
-  // 加载CSS
-  var link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = './assets/main-Cw7A_0wS.css';
-  link.onload = function() { addDebug('CSS加载成功'); };
-  link.onerror = function() { addDebug('CSS加载失败', 'ERROR'); debugPanel.classList.add('show'); };
-  document.head.appendChild(link);
-  
-  // 加载主JS
-  var script = document.createElement('script');
-  script.type = 'module';
-  script.src = './assets/main-Bi4TZM8h.js';
-  script.onload = function() { 
-    addDebug('主JS加载成功'); 
+})();
+</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="./favicon.svg">
+  <title>智学刷题 - 中级会计职称</title>
+  <meta name="description" content="中级会计职称刷题练习">
+  <script>(function() {
+      var isModernBrowser = (function() {
+        try {
+          if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') return false;
+          if (!CSS.supports('selector(:has(*))')) return false;
+          if (!CSS.supports('color', 'color-mix(in srgb, red, blue)')) return false;
+          if (!CSS.supports('color', 'oklch(50% 0.1 0)')) return false;
+          return true;
+        } catch (e) {
+          return false;
+        }
+      })();
+      var cssUrl = "./assets/main-Cw7A_0wS.css";
+      var suffix = isModernBrowser ? '' : '.legacy';
+      var finalUrl = cssUrl.replace(/.css$/, suffix + '.css');
+      document.write('<link rel="stylesheet" href="' + finalUrl + '">');
+      window.__addDebug('CSS选择: ' + (isModernBrowser ? 'modern' : 'legacy') + ' -> ' + finalUrl);
+    })();</script>
+  <script>window.__platform__ = {
+      appId: 'gh-pages',
+      userId: 'local-user',
+      env: 'runtime',
+      appName: '智学刷题',
+      tenantId: 'gh-pages',
+    };
+    window.appId = 'gh-pages';
+    window.userId = 'local-user';
+    window.tenantId = 'gh-pages';
+    window.csrfToken = '';
+    window.ENVIRONMENT = 'production';
+    window.__BASENAME__ = '';
+    window._appInfo = {
+      name: '智学刷题',
+      avatar: '',
+      description: '中级会计职称刷题练习',
+    };
+    window.IS_MIAODA_PREVIEW = false;
+    window.MIAODA_BUILTIN_TTT = '';
+    window.__addDebug('平台变量已设置');
+
+    (function() {
+      var noopPaths = [
+        '/__gh_pages_noop__/',
+        '/__runtime__/',
+        '/spark/',
+        '/ai/api/',
+        '/app/gh-pages/',
+        '/app/app_',
+        '/observability/',
+        '/permissions/roles',
+        '/account/',
+        '/studio/',
+        '/capability/',
+        '/lark/',
+        '/get_published',
+        '/user_info',
+      ];
+
+      function isNoopUrl(url) {
+        if (!url) return false;
+        if (typeof url !== 'string') {
+          try { url = url.toString(); } catch(e) { return false; }
+        }
+        if (url.indexOf('.js') !== -1 || url.indexOf('.css') !== -1 ||
+            url.indexOf('.svg') !== -1 || url.indexOf('.png') !== -1 ||
+            url.indexOf('.jpg') !== -1 || url.indexOf('.ico') !== -1 ||
+            url.indexOf('.woff') !== -1 || url.indexOf('.ttf') !== -1 ||
+            url.indexOf('.html') !== -1 || url.indexOf('/assets/') !== -1) {
+          return false;
+        }
+        for (var i = 0; i < noopPaths.length; i++) {
+          if (url.indexOf(noopPaths[i]) !== -1) return true;
+        }
+        return false;
+      }
+
+      var originalFetch = window.fetch;
+      window.fetch = function(input, init) {
+        var url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+        if (isNoopUrl(url)) {
+          window.__addDebug('拦截API: ' + url, 'API');
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            json: function() { return Promise.resolve({ code: 0, data: { roles: [], permissions: [] } }); },
+            text: function() { return Promise.resolve('{"code":0,"data":{}}'); },
+            headers: new Headers({ 'Content-Type': 'application/json' }),
+          });
+        }
+        window.__addDebug('真实请求: ' + url, 'FETCH');
+        return originalFetch.apply(this, arguments).catch(function(err) {
+          window.__addDebug('请求失败: ' + url + ' - ' + err.message, 'FETCH_ERROR');
+          throw err;
+        });
+      };
+
+      var originalXHROpen = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function(method, url) {
+        this._isNoop = isNoopUrl(url);
+        if (!this._isNoop) window.__addDebug('真实XHR: ' + method + ' ' + url, 'XHR');
+        return originalXHROpen.apply(this, arguments);
+      };
+
+      var originalXHRSend = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.send = function() {
+        if (this._isNoop) {
+          Object.defineProperty(this, 'readyState', { value: 4, writable: false });
+          Object.defineProperty(this, 'status', { value: 200, writable: false });
+          Object.defineProperty(this, 'responseText', { value: '{"code":0,"data":{}}', writable: false });
+          Object.defineProperty(this, 'response', { value: '{"code":0,"data":{}}', writable: false });
+          if (typeof this.onreadystatechange === 'function') {
+            try { this.onreadystatechange(); } catch(e) { window.__addDebug('XHR回调错误: ' + e.message, 'ERROR'); }
+          }
+          if (typeof this.onload === 'function') {
+            try { this.onload(); } catch(e) { window.__addDebug('XHR onload错误: ' + e.message, 'ERROR'); }
+          }
+          return;
+        }
+        return originalXHRSend.apply(this, arguments);
+      };
+
+      window.addEventListener('error', function(e) {
+        if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        return true;
+      }, true);
+
+      window.addEventListener('unhandledrejection', function(e) {
+        if (e.reason && typeof e.reason === 'object' && e.reason.message &&
+            (e.reason.message.indexOf('fetch') !== -1 || e.reason.message.indexOf('network') !== -1 ||
+             e.reason.message.indexOf('permission') !== -1 || e.reason.message.indexOf('404') !== -1)) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }, true);
+      window.__addDebug('API拦截器已设置');
+    })();</script>
+  <script type="module" crossorigin src="./assets/main-Bi4TZM8h.js" onload="window.__addDebug('主JS onload触发')" onerror="window.__addDebug('主JS加载失败', 'ERROR')"></script>
+  <script>
+    // 延迟检查渲染状态
     setTimeout(function() {
       var root = document.getElementById('root');
-      if (root && root.innerHTML === '') {
-        addDebug('警告: root元素为空，应用可能未渲染', 'WARN');
-        addDebug('尝试运行诊断...', 'WARN');
-        runDiagnostics();
-        debugPanel.classList.add('show');
-      } else if (root) {
-        addDebug('应用已渲染，root内容长度: ' + root.innerHTML.length);
-        document.getElementById('loading').style.display = 'none';
+      if (root) {
+        window.__addDebug('root内容长度: ' + root.innerHTML.length);
+        if (root.innerHTML.length === 0) {
+          window.__addDebug('警告: root为空，应用未渲染', 'WARN');
+          // 检查全局变量
+          ['React', 'ReactDOM', 'createRoot', 'render', '__APP__', '__INITIAL_STATE__'].forEach(function(g) {
+            window.__addDebug('window.' + g + ': ' + typeof window[g]);
+          });
+        }
+      } else {
+        window.__addDebug('root元素不存在', 'ERROR');
       }
-    }, 3000);
-  };
-  script.onerror = function() { 
-    addDebug('主JS加载失败', 'ERROR'); 
-    debugPanel.classList.add('show');
-    document.getElementById('loading').style.display = 'none';
-  };
-  document.body.appendChild(script);
-  
-  addDebug('JS脚本已插入');
-  
-  // 5秒后强制显示调试信息
-  setTimeout(function() {
-    var root = document.getElementById('root');
-    if (!root || root.innerHTML === '') {
-      addDebug('5秒后仍未渲染，强制显示调试面板', 'WARN');
-      runDiagnostics();
-      debugPanel.classList.add('show');
-    }
-  }, 5000);
-</script>
+      __debugPanel.classList.add('show');
+    }, 4000);
+  </script>
+</head>
+<body>
+  <div id="root"></div>
 </body>
 </html>
